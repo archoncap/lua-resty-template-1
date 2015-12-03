@@ -64,7 +64,10 @@ template.render([[
   * [Template Including](#template-including)
   * [Views with Layouts](#views-with-layouts)
   * [Using Blocks](#using-blocks)
+  * [Macros](#macros)
   * [Calling Methods in Templates](#calling-methods-in-templates)
+  * [Embedding Markdown inside the Templates](#embedding-markdown-inside-the-templates)
+  * [Lua Server Pages (LSP) with OpenResty](#lua-server-pages-lsp-with-openresty)
 * [FAQ](#faq)
 * [Alternatives](#alternatives)
 * [Benchmarks](#benchmarks)
@@ -751,6 +754,95 @@ view:render()
 </html>
 ```
 
+### Macros
+
+[@DDarko](https://github.com/DDarko) mentioned in an [issue #5](https://github.com/bungle/lua-resty-template/issues/5) that he has a use case where he needs to have macros or parameterized views. That is a nice feature that you can use with `lua-resty-template`.
+
+To use macros, let's first define some Lua code:
+
+```lua
+template.render("macro.html", {
+    item = "original",
+    items = { a = "original-a", b = "original-b" } 
+})
+```
+
+And the `macro-example.html`:
+
+```lua
+{% local string_macro = [[
+<div>{{item}}</div>
+]] %}
+{* template.compile(string_macro)(context) *}
+{* template.compile(string_macro){ item = "string-macro-context" } *}
+```
+
+This will output:
+
+```html
+<div>original</div>
+<div>string-macro-context</div>
+```
+
+Now let's add function macro, in `macro-example.html` (you can omit `local` if you want):
+
+```lua
+{% local function_macro = function(var, el)
+    el = el or "div"
+    return "<" .. el .. ">{{" .. var .. "}}</" .. el .. ">\n"
+end %}
+
+{* template.compile(function_macro("item"))(context) *}
+{* template.compile(function_macro("a", "span"))(items) *}
+```
+
+This will output:
+
+```html
+<div>original</div>
+<span>original-a</span>
+```
+
+But this is even more flexible, let's try another function macro:
+
+```lua
+{% local function function_macro2(var)
+    return template.compile("<div>{{" .. var .. "}}</div>\n")
+end %}
+{* function_macro2 "item" (context) *}
+{* function_macro2 "b" (items) *}
+```
+
+This will output:
+
+```html
+<div>original</div>
+<div>original-b</div>
+```
+
+And here is another one:
+
+```lua
+{% function function_macro3(var, ctx)
+    return template.compile("<div>{{" .. var .. "}}</div>\n")(ctx or context)
+end %}
+{* function_macro3("item") *}
+{* function_macro3("a", items) *}
+{* function_macro3("b", items) *}
+{* function_macro3("b", { b = "b-from-new-context" }) *}
+```
+
+This will output:
+
+```html
+<div>original</div>
+<div>original-a</div>
+<div>original-b</div>
+<div>b-from-new-context</div>
+```
+
+Macros are really flexible. You may have form-renderers and other helper-macros to have a reusable and parameterized template output. One thing you should know is that inside code blocks (between `{%` and `%}`) you cannot have `%}`, but you can work around this using string concatenation `"%" .. "}"`.
+
 ### Calling Methods in Templates
 
 You can call string methods (or other table functions) in templates too.
@@ -768,6 +860,155 @@ template.render([[
 <h1>HELLO, WORLD!</h1>
 ```
 
+### Embedding Markdown inside the Templates
+
+If you want to embed Markdown (and SmartyPants) syntax inside your templates you can do it by using for example [`lua-resty-hoedown`](https://github.com/bungle/lua-resty-hoedown) (it depends on LuaJIT). Here is an example of using that:
+
+##### Lua
+
+```lua
+local template = require "resty.template"
+template.markdown = require "resty.hoedown"
+
+template.render[=[
+<html>
+<body>
+{*markdown[[
+#Hello, World
+
+Testing Markdown.
+]]*}
+</body>
+</html>
+]=]
+```
+
+##### Output
+
+```html
+<html>
+<body>
+<h1>Hello, World</h1>
+
+<p>Testing Markdown.</p>
+</body>
+</html>
+```
+
+You may also add config parameters that are documented in `lua-resty-hoedown` project. Say you want also to use SmartyPants:
+
+##### Lua
+
+```lua
+local template = require "resty.template"
+template.markdown = require "resty.hoedown"
+
+template.render[=[
+<html>
+<body>
+{*markdown([[
+#Hello, World
+
+Testing Markdown with "SmartyPants"...
+]], { smartypants = true })*}
+</body>
+</html>
+]=]
+```
+
+##### Output
+
+```html
+<html>
+<body>
+<h1>Hello, World</h1>
+
+<p>Testing Markdown with &ldquo;SmartyPants&rdquo;&hellip;</p>
+</body>
+</html>
+```
+
+You may also want to add caching layer for your Markdowns, or a helper functions instead of placing Hoedown library directly  as a template helper function in `template`.   
+
+### Lua Server Pages (LSP) with OpenResty
+
+Lua Server Pages or LSPs is similar to traditional PHP or Microsoft Active Server Pages (ASP) where you can just place source code files in your document root (of your web server) and have them processed by compilers of the respective languages (PHP, VBScript, JScript, etc.). You can emulate quite closely this, sometimes called spaghetti-style of develoment, easily with `lua-resty-template`. Those that have been doing ASP.NET Web Forms development, know a concept of Code Behind files. There is something similar, but this time we call it Layout in Front here. To help you understand the concepts, let's have a small example:
+
+##### nginx.conf:
+
+```nginx
+http {
+  init_by_lua '
+    require "resty.core"
+    template = require "resty.template"
+    template.caching(false); -- you may remove this on production
+  ';
+  server {
+    location ~ \.lsp$ {
+      default_type text/html;
+      content_by_lua 'template.render(ngx.var.uri)';
+    }
+  }
+}
+```
+
+The above configuration creates a global `template` variable in Lua environment (you may not want this).
+We also created location to match all `.lsp` files (or locations), and then we just render the template.
+
+Let's imagine that the request is for `index.lsp`.
+
+##### index.lsp
+
+```lua
+{%
+layout = "layouts/default.lsp"
+local title = "Hello, World!"
+%}
+<h1>{{title}}</h1>
+```
+
+Here you can see that this file includes a little bit of a view (`<h1>{{title}}</h1>`) in addition to some Lua code that we want to run. If you want to have a pure code file with Layout in Front, then just don't write any view code in this file. The `layout` variable is already defined in views as documented else where in this documentation. Now let's see the other files too.
+
+##### layouts/default.lsp
+
+```html
+<html>
+{(include/header.lsp)}
+<body>
+{*view*}
+</body>
+</html>
+```
+
+Here we have a layout to decorate the `index.lsp`, but we also have include here, so let's look at it.
+
+##### include/header.lsp
+
+```html
+<head>
+  <title>Testing Lua Server Pages</title>
+</head>
+```
+
+Static stuff here only.
+
+##### Output
+
+The final output will look like this:
+
+```html
+<html>
+<head>
+  <title>Testing Lua Server Pages</title>
+</head>
+<body>
+  <h1>Hello, World!</h1>
+</body>
+</html>
+```
+
+As you can see, `lua-resty-template` can be quite flexibile and easy to start with. Just place files under your document root and use the normal save-and-refresh style of development. The server will automatically pick the new files and reload the templates (if the caching is turned of) on save.
+
 ## FAQ
 
 ### How Do I Clear the Template Cache
@@ -776,8 +1017,9 @@ template.render([[
 
 ## Alternatives
 
-You may also look at these:
+You may also look at these (as alternatives, or to mix them with `lua-resty-template`):
 
+* lua-resty-hoedown (https://github.com/bungle/lua-resty-hoedown)
 * etlua (https://github.com/leafo/etlua)
 * cgilua (http://keplerproject.github.io/cgilua/manual.html#templates)
 * orbit (http://keplerproject.github.io/orbit/pages.html)

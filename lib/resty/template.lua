@@ -22,7 +22,7 @@ local CODE_ENTITIES = {
 }
 
 local caching, ngx_var, ngx_capture, ngx_null = true
-local template = { _VERSION = "1.2", cache = {}, concat = concat }
+local template = { _VERSION = "1.3", cache = {}, concat = concat }
 
 local function read_file(path)
     local file = open(path, "rb")
@@ -219,9 +219,7 @@ function template.parse(view, plain)
         s, e = view:find("{", i, true)
     end
     c[#c+1] = "___[#___+1]=[=[" .. view:sub(j) .. "]=]"
-    c[#c+1] = "if not layout then return template.concat(___) end"
-    c[#c+1] = "if next(blocks) then return template.compile(layout)(setmetatable({view=template.concat(___),blocks=blocks},{__index=context})) end"
-    c[#c+1] = "return template.compile(layout)(context)"
+    c[#c+1] = "return layout and template.compile(layout)(setmetatable({view=template.concat(___),blocks=blocks},{__index=context})) or template.concat(___)"
     return concat(c, "\n")
 end
 
