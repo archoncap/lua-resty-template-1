@@ -7,6 +7,11 @@ local write = io.write
 local open = io.open
 local load = load
 local type = type
+local dump = string.dump
+local find = string.find
+local gsub = string.gsub
+local byte = string.byte
+local sub = string.sub
 
 local HTML_ENTITIES = {
     ["&"] = "&amp;",
@@ -19,15 +24,28 @@ local HTML_ENTITIES = {
 
 local CODE_ENTITIES = {
     ["{"] = "&#123;",
-    ["}"] = "&#125;"
+    ["}"] = "&#125;",
+    ["&"] = "&amp;",
+    ["<"] = "&lt;",
+    [">"] = "&gt;",
+    ['"'] = "&quot;",
+    ["'"] = "&#39;",
+    ["/"] = "&#47;"
 }
 
+local ok, newtab = pcall(require, "table.new")
+if not ok then newtab = function() return {} end end
+
 local caching, ngx_var, ngx_capture, ngx_null = true
-local template = { _VERSION = "1.4", cache = {}, concat = concat }
+local template = newtab(0, 13);
+
+template._VERSION = "1.5"
+template.cache    = {}
+template.concat   = concat
 
 local function rpos(view, s)
     while s > 0 do
-        local c = view:sub(s, s)
+        local c = sub(view, s, s)
         if c == " " or c == "\t" or c == "\0" or c == "\x0B" then
             s = s - 1
         else
@@ -40,7 +58,7 @@ end
 local function read_file(path)
     local file = open(path, "rb")
     if not file then return nil end
-    local content = file:read("*a")
+    local content = file:read "*a"
     file:close()
     return content
 end
@@ -51,14 +69,14 @@ end
 
 local function load_ngx(path)
     local file, location = path, ngx_var.template_location
-    if file:sub(1)  == "/" then file = file:sub(2) end
+    if sub(file, 1)  == "/" then file = sub(file, 2) end
     if location and location ~= "" then
-        if location:sub(-1) == "/" then location = location:sub(1, -2) end
+        if sub(location, -1) == "/" then location = sub(location, 1, -2) end
         local res = ngx_capture(location .. '/' .. file)
         if res.status == 200 then return res.body end
     end
     local root = ngx_var.template_root or ngx_var.document_root
-    if root:sub(-1) == "/" then root = root:sub(1, -2) end
+    if sub(root, -1) == "/" then root = sub(root, 1, -2) end
     return read_file(root .. "/" .. file) or path
 end
 
@@ -110,8 +128,8 @@ end
 
 function template.escape(s, c)
     if type(s) == "string" then
-        if c then s = s:gsub("[}{]", CODE_ENTITIES) end
-        return s:gsub("[\">/<'&]", HTML_ENTITIES)
+        if c then return gsub(s, "[}{\">/<'&]", CODE_ENTITIES) end
+        return gsub(s, "[\">/<'&]", HTML_ENTITIES)
     end
     return template.output(s)
 end
@@ -124,7 +142,7 @@ function template.new(view, layout)
             local context = context or self
             context.blocks = context.blocks or {}
             context.view = compile(view)(context)
-            render(layout, context)
+            return render(layout, context)
         end }, { __tostring = function(self)
             local context = context or self
             context.blocks = context.blocks or {}
@@ -133,16 +151,16 @@ function template.new(view, layout)
         end })
     end
     return setmetatable({ render = function(self, context)
-        render(view, context or self)
+        return render(view, context or self)
     end }, { __tostring = function(self)
         return compile(view)(context or self)
     end })
 end
 
 function template.precompile(view, path, strip)
-    local chunk = string.dump(template.compile(view), strip ~= false)
+    local chunk = dump(template.compile(view), strip ~= false)
     if path then
-        local file = io.open(path, "wb")
+        local file = open(path, "wb")
         file:write(chunk)
         file:close()
     end
@@ -164,82 +182,90 @@ end
 
 function template.parse(view, plain)
     assert(view, "view was not provided for template.parse(view, plain).")
+    local concat, rpos, find, byte, sub = concat, rpos, find, byte, sub
     if not plain then
         view = template.load(view)
-        if view:sub(1, 1):byte() == 27 then return view end
+        if byte(sub(view, 1, 1)) == 27 then return view end
     end
     local c = {[[
-context=... or {}
+context=(...) or {}
 local function include(v, c)
     return template.compile(v)(c or context)
 end
 local ___,blocks,layout={},blocks or {}
 ]]}
-    local i, s = 1, view:find("{", 1, true)
+    local i, s = 1, find(view, "{", 1, true)
     while s do
-        local t, p, d, z, r = view:sub(s + 1, s + 1), s + 2
+        local t, p, d, z, r = sub(view, s + 1, s + 1), s + 2
         if t == "{" then
-            local e = view:find("}}", p, true)
+            local e = find(view, "}}", p, true)
             if e then
-                d = concat{"___[#___+1]=template.escape(", view:sub(p, e - 1), ")\n" }
+                d = concat{"___[#___+1]=template.escape(", sub(view, p, e - 1), ")\n" }
                 z = e + 1
             end
         elseif t == "*" then
-            local e = (view:find("*}", p, true))
+            local e = (find(view, "*}", p, true))
             if e then
-                d = concat{"___[#___+1]=template.output(", view:sub(p, e - 1), ")\n" }
+                d = concat{"___[#___+1]=template.output(", sub(view, p, e - 1), ")\n" }
                 z = e + 1
             end
         elseif t == "%" then
-            local e = view:find("%}", p, true)
+            local e = find(view, "%}", p, true)
             if e then
                 local n = e + 2
-                if view:sub(n, n) == "\n" then
+                if sub(view, n, n) == "\n" then
                     n = n + 1
                 end
-                d = concat{view:sub(p, e - 1), "\n" }
+                d = concat{sub(view, p, e - 1), "\n" }
                 z, r = n - 1, true
             end
         elseif t == "(" then
-            local e = view:find(")}", p, true)
+            local e = find(view, ")}", p, true)
             if e then
-                local f = view:sub(p, e - 1)
-                local x = (f:find(",", 2, true))
+                local f = sub(view, p, e - 1)
+                local x = (find(f, ",", 2, true))
                 if x then
-                    d = concat{"___[#___+1]=include([=[", f:sub(1, x - 1), "]=],", f:sub(x + 1), ")\n"}
+                    d = concat{"___[#___+1]=include([=[", sub(f, 1, x - 1), "]=],", sub(f, x + 1), ")\n"}
                 else
                     d = concat{"___[#___+1]=include([=[", f, "]=])\n" }
                 end
                 z = e + 1
             end
         elseif t == "[" then
-            local e = view:find("]}", p, true)
+            local e = find(view, "]}", p, true)
             if e then
-                d = concat{"___[#___+1]=include(", view:sub(p, e - 1), ")\n" }
+                d = concat{"___[#___+1]=include(", sub(view, p, e - 1), ")\n" }
                 z = e + 1
             end
         elseif t == "-" then
-            local e = view:find("-}", p, true)
+            local e = find(view, "-}", p, true)
             if e then
-                local x, y = view:find(view:sub(s, e + 1), e + 2, true)
+                local x, y = find(view, sub(view, s, e + 1), e + 2, true)
                 if x then
                     y = y + 1
                     x = x - 1
-                    if view:sub(y, y) == "\n" then
+                    if sub(view, y, y) == "\n" then
                         y = y + 1
                     end
-                    if view:sub(x, x) == "\n" then
-                        x = x - 1
+                    local b = sub(view, p, e - 1)
+                    if b == "verbatim" or b == "raw" then
+                        d = concat{"___[#___+1]=[=[", sub(view, e + 2, x), "]=]\n" }
+                        z, r = y - 1, false
+                    else
+                        if sub(view, x, x) == "\n" then
+                            x = x - 1
+                        end
+                        d = concat{'blocks["', b, '"]=include[=[', sub(view, e + 2, x), "]=]\n" }
+                        z, r = y - 1, true
                     end
-                    d = concat{'blocks["', view:sub(p, e - 1), '"]=include[=[', view:sub(e + 2, x), "]=]\n"}
-                    z, r = y - 1, true
+
                 end
             end
         elseif t == "#" then
-            local e = view:find("#}", p, true)
+            local e = find(view, "#}", p, true)
             if e then
                 e = e + 2
-                if view:sub(e, e) == "\n" then
+                if sub(view, e, e) == "\n" then
                     e = e + 1
                 end
                 d = ""
@@ -247,15 +273,15 @@ local ___,blocks,layout={},blocks or {}
             end
         end
         if d then
-            c[#c+1] = concat{"___[#___+1]=[=[\n", view:sub(i, r and rpos(view, s - 1) or s - 1), "]=]\n" }
+            c[#c+1] = concat{"___[#___+1]=[=[\n", sub(view, i, r and rpos(view, s - 1) or s - 1), "]=]\n" }
             if d ~= "" then
                 c[#c+1] = d
             end
             s, i = z, z + 1
         end
-        s = view:find("{", s + 1, true)
+        s = find(view, "{", s + 1, true)
     end
-    c[#c+1] = concat{"___[#___+1]=[=[\n", view:sub(i), "]=]\n"}
+    c[#c+1] = concat{"___[#___+1]=[=[\n", sub(view, i), "]=]\n"}
     c[#c+1] = "return layout and include(layout,setmetatable({view=template.concat(___),blocks=blocks},{__index=context})) or template.concat(___)"
     return concat(c)
 end

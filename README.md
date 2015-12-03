@@ -7,19 +7,11 @@
 ```lua
 local template = require "resty.template"
 -- Using template.new
-local view = template.new("view.html")
+local view = template.new"view.html"
 view.message  = "Hello, World!"
 view:render()
 -- Using template.render
 template.render("view.html", { message = "Hello, World!" })
--- Using template string
-template.render([[
-<!DOCTYPE html>
-<html>
-<body>
-  <h1>{{message}}</h1>
-</body>
-</html>]], { message = "Hello, World!" })
 ```
 
 ##### view.html
@@ -40,6 +32,19 @@ template.render([[
   <h1>Hello, World!</h1>
 </body>
 </html>
+```
+
+The same can be done with inline template string:
+
+```lua
+-- Using template string
+template.render([[
+<!DOCTYPE html>
+<html>
+<body>
+  <h1>{{message}}</h1>
+</body>
+</html>]], { message = "Hello, World!" })
 ```
 
 ## Contents
@@ -83,13 +88,37 @@ You may use the following tags in templates:
 * `{% lua code %}`, executes Lua code
 * `{(template)}`, includes `template` file, you may also supply context for include file `{(file.html, { message = "Hello, World" } )}`
 * `{[expression]}`, includes `expression` file (the result of expression), you may also supply context for include file `{["file.html", { message = "Hello, World" } ]}`
-* `{-block-}...{-block-}`, wraps inside of a `{-block-}` to a value stored in a `blocks` table with a key `block` (in this case), see [using blocks](https://github.com/bungle/lua-resty-template#using-blocks).
+* `{-block-}...{-block-}`, wraps inside of a `{-block-}` to a value stored in a `blocks` table with a key `block` (in this case), see [using blocks](https://github.com/bungle/lua-resty-template#using-blocks). Don't use predefined block names `verbatim` and `raw`.
+* `{-verbatim-}...{-verbatim-}` and `{-raw-}...{-raw-}` are predefined blocks whose inside is not processed by the `lua-resty-template` but the content is outputted as is.
 * `{# comments #}` everything between `{#` and `#}` is considered to be commented out (i.e. not outputted or executed)
 
 From templates you may access everything in `context` table, and everything in `template` table. In templates you can also access `context` and `template` by prefixing keys.
 
 ```html
 <h1>{{message}}</h1> == <h1>{{context.message}}</h1>
+```
+
+##### A Word About Complex Keys in Context Table
+
+Say you have this kind of a context table:
+
+```lua
+local ctx = {["foo:bar"] = "foobar"}
+```
+
+And you want to render the `ctx["foo:bar"]`'s value `foobar` in your template.  You have to specify it explicitly by referencing the `context` in your template:
+
+```html
+{# {*["foo:bar"]*} won't work, you need to use: #}
+{*context["foo:bar"]*}
+```
+
+Or altogether:
+
+```lua
+template.render([[
+{*context["foo:bar"]*}
+]], {["foo:bar"] = "foobar"})
 ```
 
 ##### A Word About HTML Escaping
@@ -294,12 +323,13 @@ Please note that if the template was already cached when compiling a template, t
 
 #### table template.new(view, layout)
 
-Creates a new template instance that is used as a (default) context when `render`ed.
+Creates a new template instance that is used as a (default) context when `render`ed. A table that gets created has
+only one method `render`, but the table also has metatable with `__tostring` defined. See the example below.
 
 ```lua
-local view = template.new("template.html")            -- or
+local view = template.new"template.html"              -- or
 local view = template.new("view.html", "layout.html") -- or
-local view = template.new([[<h1>{{message}}</h1>]])   -- or
+local view = template.new[[<h1>{{message}}</h1>]]     -- or
 local view = template.new([[<h1>{{message}}</h1>]], [[
 <html>
 <body>
@@ -312,7 +342,7 @@ local view = template.new([[<h1>{{message}}</h1>]], [[
 ##### Example
 ```lua
 local template = require "resty.template"
-local view = template.new("view.html")
+local view = template.new"view.html"
 view.message  = "Hello, World!"
 view:render()
 -- You may also replace context on render
@@ -601,7 +631,7 @@ Layouts (or Master Pages) can be used to wrap a view inside another view (aka la
 ##### Lua
 ```lua
 local template = require "resty.template"
-local layout   = template.new("layout.html")
+local layout   = template.new"layout.html"
 layout.title   = "Testing lua-resty-template"
 layout.view    = template.compile("view.html"){ message = "Hello, World!" }
 layout:render()
@@ -961,7 +991,7 @@ Let's imagine that the request is for `index.lsp`.
 
 ##### index.lsp
 
-```lua
+```html
 {%
 layout = "layouts/default.lsp"
 local title = "Hello, World!"
@@ -1013,7 +1043,7 @@ As you can see, `lua-resty-template` can be quite flexibile and easy to start wi
 
 If you want to pass variables to layouts or includes you can add stuff to context table (in the example below see `context.title`):
 
-```lua
+```html
 {%
 layout = "layouts/default.lsp"
 local title = "Hello, World!"
@@ -1083,46 +1113,84 @@ benchmark.run(100)
 
 Here are some results from my laptop.
 
-##### Lua 5.2.2  Copyright (C) 1994-2013 Lua.org, PUC-Rio
+##### Lua 5.1.5  Copyright (C) 1994-2012 Lua.org, PUC-Rio
 
 ```
 Running 1000 iterations in each test
-Compilation Time: 0.056178 (template)
-Compilation Time: 0.000266 (template cached)
-  Execution Time: 0.067796 (same template)
-  Execution Time: 0.009158 (same template cached)
-  Execution Time: 0.062518 (different template)
-  Execution Time: 0.008550 (different template cached)
-  Execution Time: 0.071966 (different template, different context)
-  Execution Time: 0.009919 (different template, different context cached)
+    Parsing Time: 0.015122
+Compilation Time: 0.056889 (template)
+Compilation Time: 0.000283 (template cached)
+  Execution Time: 0.065662 (same template)
+  Execution Time: 0.007642 (same template cached)
+  Execution Time: 0.089193 (different template)
+  Execution Time: 0.012040 (different template cached)
+  Execution Time: 0.089345 (different template, different context)
+  Execution Time: 0.009352 (different template, different context cached)
+      Total Time: 0.345528
+```
+
+##### Lua 5.2.3  Copyright (C) 1994-2013 Lua.org, PUC-Rio
+
+```
+Running 1000 iterations in each test
+    Parsing Time: 0.018174
+Compilation Time: 0.057711 (template)
+Compilation Time: 0.000641 (template cached)
+  Execution Time: 0.073134 (same template)
+  Execution Time: 0.008268 (same template cached)
+  Execution Time: 0.073124 (different template)
+  Execution Time: 0.009122 (different template cached)
+  Execution Time: 0.076488 (different template, different context)
+  Execution Time: 0.010532 (different template, different context cached)
+      Total Time: 0.327194
 ```
 
 ##### LuaJIT 2.0.2 -- Copyright (C) 2005-2013 Mike Pall. http://luajit.org/
 
 ```
 Running 1000 iterations in each test
-Compilation Time: 0.026106 (template)
-Compilation Time: 0.000079 (template cached)
-  Execution Time: 0.034294 (same template)
-  Execution Time: 0.004126 (same template cached)
-  Execution Time: 0.057301 (different template)
-  Execution Time: 0.009084 (different template cached)
-  Execution Time: 0.063139 (different template, different context)
-  Execution Time: 0.005883 (different template, different context cached)
+    Parsing Time: 0.007033
+Compilation Time: 0.025629 (template)
+Compilation Time: 0.000088 (template cached)
+  Execution Time: 0.037289 (same template)
+  Execution Time: 0.003504 (same template cached)
+  Execution Time: 0.062916 (different template)
+  Execution Time: 0.009832 (different template cached)
+  Execution Time: 0.085920 (different template, different context)
+  Execution Time: 0.005960 (different template, different context cached)
+      Total Time: 0.238171
 ```
 
 ##### LuaJIT 2.1.0-alpha -- Copyright (C) 2005-2014 Mike Pall. http://luajit.org/
 
 ```
 Running 1000 iterations in each test
-Compilation Time: 0.021228 (template)
-Compilation Time: 0.000077 (template cached)
-  Execution Time: 0.029370 (same template)
-  Execution Time: 0.004002 (same template cached)
-  Execution Time: 0.049048 (different template)
-  Execution Time: 0.018746 (different template cached)
-  Execution Time: 0.061752 (different template, different context)
-  Execution Time: 0.006793 (different template, different context cached)
+    Parsing Time: 0.005303
+Compilation Time: 0.026526 (template)
+Compilation Time: 0.000081 (template cached)
+  Execution Time: 0.032381 (same template)
+  Execution Time: 0.003093 (same template cached)
+  Execution Time: 0.067692 (different template)
+  Execution Time: 0.017352 (different template cached)
+  Execution Time: 0.080708 (different template, different context)
+  Execution Time: 0.008069 (different template, different context cached)
+      Total Time: 0.241205
+```
+
+##### resty (nginx version: openresty/1.7.7.1rc2)
+
+```
+Running 1000 iterations in each test
+    Parsing Time: 0.003399
+Compilation Time: 0.024299 (template)
+Compilation Time: 0.000069 (template cached)
+  Execution Time: 0.031916 (same template)
+  Execution Time: 0.003695 (same template cached)
+  Execution Time: 0.063388 (different template)
+  Execution Time: 0.009231 (different template cached)
+  Execution Time: 0.074184 (different template, different context)
+  Execution Time: 0.006725 (different template, different context cached)
+      Total Time: 0.216906
 ```
 
 I have not yet compared the results against the alternatives.
