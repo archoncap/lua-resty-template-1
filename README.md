@@ -82,6 +82,7 @@ You may use the following tags in templates:
 * `{*expression*}`, writes result of expression 
 * `{% lua code %}`, executes Lua code
 * `{(template)}`, includes `template` file, you may also supply context for include file `{(file.html, { message = "Hello, World" } )}`
+* `{[expression]}`, includes `expression` file (the result of expression), you may also supply context for include file `{["file.html", { message = "Hello, World" } ]}`
 * `{-block-}...{-block-}`, wraps inside of a `{-block-}` to a value stored in a `blocks` table with a key `block` (in this case), see [using blocks](https://github.com/bungle/lua-resty-template#using-blocks).
 * `{# comments #}` everything between `{#` and `#}` is considered to be commented out (i.e. not outputted or executed)
 
@@ -151,6 +152,7 @@ It is adviced that you do not use these keys in your context tables:
 
 * `___`, holds the compiled template, if set you need to use `{{context.___}}`
 * `context`, holds the current context, if set you need to use `{{context.context}}`
+* `include`, holds the include helper function, if set you need to use `{{context.include}}`
 * `layout`, holds the layout by which the view will be decorated, if set you need to use `{{context.layout}}`
 * `blocks`, holds the blocks, if set you need to use `{{context.blocks}}` (see: [using blocks](#using-blocks))
 * `template`, holds the template table, if set you need to use `{{context.template}}`
@@ -932,7 +934,7 @@ You may also want to add caching layer for your Markdowns, or a helper functions
 
 ### Lua Server Pages (LSP) with OpenResty
 
-Lua Server Pages or LSPs is similar to traditional PHP or Microsoft Active Server Pages (ASP) where you can just place source code files in your document root (of your web server) and have them processed by compilers of the respective languages (PHP, VBScript, JScript, etc.). You can emulate quite closely this, sometimes called spaghetti-style of develoment, easily with `lua-resty-template`. Those that have been doing ASP.NET Web Forms development, know a concept of Code Behind files. There is something similar, but this time we call it Layout in Front here. To help you understand the concepts, let's have a small example:
+Lua Server Pages or LSPs is similar to traditional PHP or Microsoft Active Server Pages (ASP) where you can just place source code files in your document root (of your web server) and have them processed by compilers of the respective languages (PHP, VBScript, JScript, etc.). You can emulate quite closely this, sometimes called spaghetti-style of develoment, easily with `lua-resty-template`. Those that have been doing ASP.NET Web Forms development, know a concept of Code Behind files. There is something similar, but this time we call it Layout in Front here (you may include Lua modules with normal `require` calls if you wish in LSPs). To help you understand the concepts, let's have a small example:
 
 ##### nginx.conf:
 
@@ -952,7 +954,7 @@ http {
 }
 ```
 
-The above configuration creates a global `template` variable in Lua environment (you may not want this).
+The above configuration creates a global `template` variable in Lua environment (you may not want that).
 We also created location to match all `.lsp` files (or locations), and then we just render the template.
 
 Let's imagine that the request is for `index.lsp`.
@@ -1009,6 +1011,17 @@ The final output will look like this:
 
 As you can see, `lua-resty-template` can be quite flexibile and easy to start with. Just place files under your document root and use the normal save-and-refresh style of development. The server will automatically pick the new files and reload the templates (if the caching is turned of) on save.
 
+If you want to pass variables to layouts or includes you can add stuff to context table (in the example below see `context.title`):
+
+```lua
+{%
+layout = "layouts/default.lsp"
+local title = "Hello, World!"
+context.title = 'My Application - ' .. title
+%}
+<h1>{{title}}</h1>
+```
+
 ## FAQ
 
 ### How Do I Clear the Template Cache
@@ -1020,6 +1033,7 @@ As you can see, `lua-resty-template` can be quite flexibile and easy to start wi
 You may also look at these (as alternatives, or to mix them with `lua-resty-template`):
 
 * lua-resty-hoedown (https://github.com/bungle/lua-resty-hoedown)
+* lua-template (https://github.com/dannote/lua-template)
 * etlua (https://github.com/leafo/etlua)
 * cgilua (http://keplerproject.github.io/cgilua/manual.html#templates)
 * orbit (http://keplerproject.github.io/orbit/pages.html)
