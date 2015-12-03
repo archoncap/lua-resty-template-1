@@ -47,6 +47,7 @@ template.render([[
 * [Template Syntax](#template-syntax)
   * [Reserved Context Keys and Remarks](#reserved-context-keys-and-remarks)
 * [Installation](#installation)
+  * [Using LuaRocks or Moonrocks](#using-luarocks-or-moonrocks)
 * [Nginx / OpenResty Configuration](#nginx--openresty-configuration)
 * [Lua API](#lua-api)
   * [template.caching](#boolean-templatecachingboolean-or-nil)
@@ -66,6 +67,7 @@ template.render([[
 * [FAQ](#faq)
 * [Alternatives](#alternatives)
 * [Benchmarks](#benchmarks)
+* [Changes](#changes)
 * [License](#license)
 
 ## Template Syntax
@@ -177,6 +179,21 @@ You can  load templates from "sub-directories" as well with `{(syntax)}`:
 ## Installation
 
 Just place [`template.lua`](https://github.com/bungle/lua-resty-template/blob/master/lib/resty/template.lua) somewhere in your `package.path`, preferably under `resty` directory. If you are using OpenResty, the default location would be `/usr/local/openresty/lualib/resty`.
+
+### Using LuaRocks or MoonRocks
+
+If you are using LuaRocks >= 2.2:
+
+```Shell
+$ luarocks install lua-resty-template
+```
+
+If you are using LuaRocks < 2.2:
+
+```Shell
+$ luarocks install --server=http://rocks.moonscript.org moonrocks
+$ moonrocks install lua-resty-template
+```
 
 ## Nginx / OpenResty Configuration
 
@@ -716,6 +733,7 @@ You may also look at these:
 * turbolua mustache (http://turbolua.org/doc/web.html#mustache-templating)
 * pl.template (http://stevedonovan.github.io/Penlight/api/modules/pl.template.html)
 * lustache (https://github.com/Olivine-Labs/lustache)
+* luvstache (https://github.com/james2doyle/luvstache)
 * lust (https://github.com/weshoke/Lust)
 * templet (http://colberg.org/lua-templet/)
 * luahtml (https://github.com/TheLinx/LuaHTML)
@@ -800,6 +818,10 @@ Compilation Time: 0.000077 (template cached)
 ```
 
 I have not yet compared the results against the alternatives.
+
+## Changes
+
+The changes of every release of this module is recorded in [CHANGES](https://github.com/bungle/lua-resty-template/blob/master/CHANGES) file.
 
 ## License
 
