@@ -1,14 +1,16 @@
 # lua-resty-template
 
-**lua-resty-template** is a compiling (HTML) templating engine for Lua and OpenResty.
+**lua-resty-template** is a compiling (1) (HTML) templating engine for Lua and OpenResty.
+
+(1) with compilation we mean that templates are translated to Lua functions that you may call or `string.dump` as a binary bytecode blobs to disk that can be later utilized with `lua-resty-template` or basic `load` and `loadfile` standard Lua functions (see also [Template Precompilation](#template-precompilation)). Although, generally you don't need to do that as `lua-resty-template` handles this behind the scenes.
 
 ## Hello World with lua-resty-template
 
 ```lua
 local template = require "resty.template"
 -- Using template.new
-local view = template.new"view.html"
-view.message  = "Hello, World!"
+local view = template.new "view.html"
+view.message = "Hello, World!"
 view:render()
 -- Using template.render
 template.render("view.html", { message = "Hello, World!" })
@@ -71,6 +73,7 @@ template.render([[
   * [Using Blocks](#using-blocks)
   * [Macros](#macros)
   * [Calling Methods in Templates](#calling-methods-in-templates)
+  * [Embedding Angular or other tags / templating inside the Templates](#embedding-angular-or-other-tags--templating-inside-the-templates)
   * [Embedding Markdown inside the Templates](#embedding-markdown-inside-the-templates)
   * [Lua Server Pages (LSP) with OpenResty](#lua-server-pages-lsp-with-openresty)
 * [FAQ](#faq)
@@ -96,6 +99,32 @@ From templates you may access everything in `context` table, and everything in `
 
 ```html
 <h1>{{message}}</h1> == <h1>{{context.message}}</h1>
+```
+
+##### Short Escaping Syntax
+
+If you don't want a particular template tag to be processed you may escape the starting tag with backslash `\`:
+
+```html
+<h1>\{{message}}</h1>
+```
+
+This will output (instead of evaluating the message):
+
+```html
+<h1>{{message}}</h1>
+```
+
+If you want to add backslash char just before template tag, you need to escape that as well:
+
+```html
+<h1>\\{{message}}</h1>
+```
+
+This will output:
+
+```html
+<h1>\[message-variables-content-here]</h1>
 ```
 
 ##### A Word About Complex Keys in Context Table
@@ -414,7 +443,7 @@ local view = [[
 local compiled = template.precompile(view)
 
 local file = io.open("precompiled-bin.html", "wb")
-file:write(t)
+file:write(compiled)
 file:close()
 
 -- Alternatively you could just write (which does the same thing as above)
@@ -891,6 +920,56 @@ template.render([[
 ```html
 <h1>HELLO, WORLD!</h1>
 ```
+### Embedding Angular or other tags / templating inside the Templates
+ 
+Sometimes you need to mix and match other templates (say client side Javascript templates like Angular) with
+server side lua-resty-templates. Say you have this kind of Angular template:
+
+```html
+<html ng-app>
+ <body ng-controller="MyController">
+   <input ng-model="foo" value="bar">
+   <button ng-click="changeFoo()">{{buttonText}}</button>
+   <script src="angular.js">
+ </body>
+</html>
+```
+
+Now you can see that there is `{{buttonText}}` that is really for Angular templating, and not for lua-resty-template.
+You can fix this by wrapping either the whole code with `{-verbatim-}` or `{-raw-}` or only the parts that you want:
+
+```html
+{-raw-}
+<html ng-app>
+ <body ng-controller="MyController">
+   <input ng-model="foo" value="bar">
+   <button ng-click="changeFoo()">{{buttonText}}</button>
+   <script src="angular.js">
+ </body>
+</html>
+{-raw-}
+```
+
+or (see the `{(head.html)}` is processed by lua-resty-template):
+
+```html
+<html ng-app>
+ {(head.html)}
+ <body ng-controller="MyController">
+   <input ng-model="foo" value="bar">
+   <button ng-click="changeFoo()">{-raw-}{{buttonText}}{-raw-}</button>
+   <script src="angular.js">
+ </body>
+</html>
+```
+
+You may also use short escaping syntax (currently implemented in development version:
+
+```html
+...
+<button ng-click="changeFoo()">\{{buttonText}}</button>
+...
+```
 
 ### Embedding Markdown inside the Templates
 
@@ -1058,19 +1137,29 @@ context.title = 'My Application - ' .. title
 
 `lua-resty-template` automatically caches (if caching is enabled) the resulting template functions in `template.cache` table. You can clear the cache by issuing `template.cache = {}`.
 
+### Where is `lua-resty-template` Used
+
+* [jd.com](http://www.jd.com/) – Jingdong Mall (Chinese: 京东商城; pinyin: Jīngdōng Shāngchéng), formerly 360Buy, is a Chinese electronic commerce company
+
+Please let me know if there are errors or old information in this list. 
+
 ## Alternatives
 
 You may also look at these (as alternatives, or to mix them with `lua-resty-template`):
 
+* lemplate (https://github.com/openresty/lemplate)
 * lua-resty-hoedown (https://github.com/bungle/lua-resty-hoedown)
-* lua-template (https://github.com/dannote/lua-template)
 * etlua (https://github.com/leafo/etlua)
+* lua-template (https://github.com/dannote/lua-template)
+* lua-resty-tmpl (https://github.com/lloydzhou/lua-resty-tmpl) (a fork of the [lua-template](https://github.com/dannote/lua-template))
+* htmlua (https://github.com/benglard/htmlua)
 * cgilua (http://keplerproject.github.io/cgilua/manual.html#templates)
 * orbit (http://keplerproject.github.io/orbit/pages.html)
 * turbolua mustache (http://turbolua.org/doc/web.html#mustache-templating)
 * pl.template (http://stevedonovan.github.io/Penlight/api/modules/pl.template.html)
 * lustache (https://github.com/Olivine-Labs/lustache)
 * luvstache (https://github.com/james2doyle/luvstache)
+* luaghetti (https://github.com/AterCattus/luaghetti)
 * lub.Template (http://doc.lubyk.org/lub.Template.html)
 * lust (https://github.com/weshoke/Lust)
 * templet (http://colberg.org/lua-templet/)
@@ -1093,6 +1182,7 @@ You may also look at these (as alternatives, or to mix them with `lua-resty-temp
 * lua-haml (https://github.com/norman/lua-haml)
 * lua-template (https://github.com/tgn14/Lua-template)
 * hige (https://github.com/nrk/hige)
+* mod_pLua (https://sourceforge.net/p/modplua/wiki/Home/)
 * lapis html generation (http://leafo.net/lapis/reference.html#html-generation)
 
 `lua-resty-template` *was originally forked from Tor Hveem's* `tirtemplate.lua` *that he had extracted from Zed Shaw's Tir web framework (http://tir.mongrel2.org/). Thank you Tor, and Zed for your earlier contributions.*
@@ -1145,52 +1235,68 @@ Compilation Time: 0.000641 (template cached)
       Total Time: 0.327194
 ```
 
+##### Lua 5.3.0  Copyright (C) 1994-2015 Lua.org, PUC-Rio
+
+```
+Running 1000 iterations in each test
+    Parsing Time: 0.018946
+Compilation Time: 0.056762 (template)
+Compilation Time: 0.000529 (template cached)
+  Execution Time: 0.073199 (same template)
+  Execution Time: 0.007849 (same template cached)
+  Execution Time: 0.065949 (different template)
+  Execution Time: 0.008555 (different template cached)
+  Execution Time: 0.076584 (different template, different context)
+  Execution Time: 0.009687 (different template, different context cached)
+      Total Time: 0.318060
+```
+
 ##### LuaJIT 2.0.2 -- Copyright (C) 2005-2013 Mike Pall. http://luajit.org/
 
 ```
 Running 1000 iterations in each test
-    Parsing Time: 0.007033
-Compilation Time: 0.025629 (template)
-Compilation Time: 0.000088 (template cached)
-  Execution Time: 0.037289 (same template)
-  Execution Time: 0.003504 (same template cached)
-  Execution Time: 0.062916 (different template)
-  Execution Time: 0.009832 (different template cached)
-  Execution Time: 0.085920 (different template, different context)
-  Execution Time: 0.005960 (different template, different context cached)
-      Total Time: 0.238171
+    Parsing Time: 0.009124
+Compilation Time: 0.029342 (template)
+Compilation Time: 0.000149 (template cached)
+  Execution Time: 0.035011 (same template)
+  Execution Time: 0.003697 (same template cached)
+  Execution Time: 0.066440 (different template)
+  Execution Time: 0.009159 (different template cached)
+  Execution Time: 0.062997 (different template, different context)
+  Execution Time: 0.005843 (different template, different context cached)
+      Total Time: 0.221762
 ```
 
 ##### LuaJIT 2.1.0-alpha -- Copyright (C) 2005-2014 Mike Pall. http://luajit.org/
 
 ```
 Running 1000 iterations in each test
-    Parsing Time: 0.005303
-Compilation Time: 0.026526 (template)
-Compilation Time: 0.000081 (template cached)
-  Execution Time: 0.032381 (same template)
-  Execution Time: 0.003093 (same template cached)
-  Execution Time: 0.067692 (different template)
-  Execution Time: 0.017352 (different template cached)
-  Execution Time: 0.080708 (different template, different context)
-  Execution Time: 0.008069 (different template, different context cached)
-      Total Time: 0.241205
+    Parsing Time: 0.003742
+Compilation Time: 0.028227 (template)
+Compilation Time: 0.000182 (template cached)
+  Execution Time: 0.034940 (same template)
+  Execution Time: 0.002974 (same template cached)
+  Execution Time: 0.067101 (different template)
+  Execution Time: 0.011551 (different template cached)
+  Execution Time: 0.071506 (different template, different context)
+  Execution Time: 0.007749 (different template, different context cached)
+      Total Time: 0.227972
 ```
 
-##### resty (nginx version: openresty/1.7.7.1rc2)
+##### resty (resty 0.01, nginx version: openresty/1.7.7.2)
 
 ```
 Running 1000 iterations in each test
-    Parsing Time: 0.003399
-Compilation Time: 0.024299 (template)
-Compilation Time: 0.000069 (template cached)
-  Execution Time: 0.031916 (same template)
-  Execution Time: 0.003695 (same template cached)
-  Execution Time: 0.063388 (different template)
-  Execution Time: 0.009231 (different template cached)
-  Execution Time: 0.074184 (different template, different context)
-  Execution Time: 0.006725 (different template, different context cached)
-      Total Time: 0.216906
+    Parsing Time: 0.003726
+Compilation Time: 0.035392 (template)
+Compilation Time: 0.000112 (template cached)
+  Execution Time: 0.037252 (same template)
+  Execution Time: 0.003590 (same template cached)
+  Execution Time: 0.058258 (different template)
+  Execution Time: 0.009501 (different template cached)
+  Execution Time: 0.059082 (different template, different context)
+  Execution Time: 0.006612 (different template, different context cached)
+      Total Time: 0.213525
 ```
 
 I have not yet compared the results against the alternatives.
@@ -1204,7 +1310,7 @@ The changes of every release of this module is recorded in [CHANGES](https://git
 `lua-resty-template` uses three clause BSD license (because it was originally forked from one that uses it).
 
 ```
-Copyright (c) 2014, Aapo Talvensaari
+Copyright (c) 2016, Aapo Talvensaari
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification,

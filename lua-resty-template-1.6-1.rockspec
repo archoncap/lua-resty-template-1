@@ -1,16 +1,16 @@
 -- This file was automatically generated for the LuaDist project.
 
 package = "lua-resty-template"
-version = "1.5-1"
+version = "1.6-1"
 -- LuaDist source
 source = {
-  tag = "1.5-1",
-  url = "git://github.com/LuaDist2/lua-resty-template.git"
+  url = "git://github.com/LuaDist2/lua-resty-template.git",
+  tag = "1.6-1"
 }
 -- Original source
 -- source = {
 --     url = "git://github.com/bungle/lua-resty-template.git",
---     branch = "v1.5"
+--     branch = "v1.6"
 -- }
 description = {
     summary = "Templating Engine (HTML) for Lua and OpenResty",
