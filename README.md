@@ -353,7 +353,9 @@ Please note that if the template was already cached when compiling a template, t
 #### table template.new(view, layout)
 
 Creates a new template instance that is used as a (default) context when `render`ed. A table that gets created has
-only one method `render`, but the table also has metatable with `__tostring` defined. See the example below.
+only one method `render`, but the table also has metatable with `__tostring` defined. See the example below. Both
+`view` and `layout` arguments can either be strings or file paths, but layout can also be a table created previously
+with `template.new`.
 
 ```lua
 local view = template.new"template.html"              -- or
@@ -660,19 +662,25 @@ Layouts (or Master Pages) can be used to wrap a view inside another view (aka la
 ##### Lua
 ```lua
 local template = require "resty.template"
-local layout   = template.new"layout.html"
+local layout   = template.new "layout.html"
 layout.title   = "Testing lua-resty-template"
-layout.view    = template.compile("view.html"){ message = "Hello, World!" }
+layout.view    = template.compile "view.html" { message = "Hello, World!" }
 layout:render()
 -- Or like this
 template.render("layout.html", {
   title = "Testing lua-resty-template",
-  view  = template.compile("view.html"){ message = "Hello, World!" }
+  view  = template.compile "view.html" { message = "Hello, World!" }
 })
 -- Or maybe you like this style more
 -- (but please remember that context.view is overwritten on rendering the layout.html)
 local view     = template.new("view.html", "layout.html")
 view.title     = "Testing lua-resty-template"
+view.message   = "Hello, World!"
+view:render()
+-- Well, maybe like this then?
+local layout   = template.new "layout.html"
+layout.title   = "Testing lua-resty-template"
+local view     = template.new("view.html", layout)
 view.message   = "Hello, World!"
 view:render()
 ```
@@ -1148,6 +1156,7 @@ Please let me know if there are errors or old information in this list.
 You may also look at these (as alternatives, or to mix them with `lua-resty-template`):
 
 * lemplate (https://github.com/openresty/lemplate)
+* lua-resty-tags (https://github.com/bungle/lua-resty-tags)
 * lua-resty-hoedown (https://github.com/bungle/lua-resty-hoedown)
 * etlua (https://github.com/leafo/etlua)
 * lua-template (https://github.com/dannote/lua-template)
